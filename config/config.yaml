@@ -37,4 +37,10 @@ target:
   # Model on log1p(SalePrice); report metrics in both log and dollar space.
   transform: log1p
 
+preprocessing:
+  # Drop the 2 documented partial-sale outliers (>4000 sqft, <$300k) from
+  # TRAINING data only. Adopted on evidence (M3): Ridge 5-fold log-RMSE
+  # 0.13213 -> 0.11402; dataset author flags these sales as non-market.
+  drop_partial_sale_outliers: true
+
 # Model grids and tuning spaces are added in later milestones (M4/M5).

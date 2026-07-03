@@ -72,6 +72,11 @@ class TargetConfig:
 
 
 @dataclass(frozen=True)
+class PreprocessingConfig:
+    drop_partial_sale_outliers: bool
+
+
+@dataclass(frozen=True)
 class Config:
     """Top-level typed view of ``config.yaml``."""
 
@@ -81,6 +86,7 @@ class Config:
     split: SplitConfig
     cv: CVConfig
     target: TargetConfig
+    preprocessing: PreprocessingConfig
 
 
 def _resolve(root: Path, value: str) -> Path:
@@ -123,6 +129,7 @@ def load_config(path: str | Path | None = None) -> Config:
     split = SplitConfig(**raw["split"])
     cv = CVConfig(**raw["cv"])
     target = TargetConfig(**raw["target"])
+    preprocessing = PreprocessingConfig(**raw["preprocessing"])
 
     return Config(
         seed=int(raw["seed"]),
@@ -131,4 +138,5 @@ def load_config(path: str | Path | None = None) -> Config:
         split=split,
         cv=cv,
         target=target,
+        preprocessing=preprocessing,
     )

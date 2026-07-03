@@ -18,6 +18,7 @@ def test_load_default_config() -> None:
     assert cfg.split.test_size == pytest.approx(0.2)
     assert cfg.cv.n_folds == 5
     assert cfg.target.transform == "log1p"
+    assert isinstance(cfg.preprocessing.drop_partial_sale_outliers, bool)
 
 
 def test_paths_are_absolute_under_root() -> None:

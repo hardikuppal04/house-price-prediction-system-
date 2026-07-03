@@ -28,6 +28,7 @@ def synthetic_ames(rng: np.random.Generator) -> pd.DataFrame:
     year_built = rng.integers(1900, 2010, size=n)
     df = pd.DataFrame(
         {
+            "Id": np.arange(1, n + 1),
             "MSSubClass": rng.choice([20, 30, 60, 70], size=n),
             "MSZoning": rng.choice(["RL", "RM", "FV"], size=n),
             "LotFrontage": rng.normal(70, 20, size=n),
@@ -39,7 +40,10 @@ def synthetic_ames(rng: np.random.Generator) -> pd.DataFrame:
             "OverallCond": rng.integers(1, 11, size=n),
             "YearBuilt": year_built,
             "YearRemodAdd": year_built + rng.integers(0, 20, size=n),
+            "YrSold": rng.integers(2006, 2011, size=n),
             "GrLivArea": rng.integers(500, 4000, size=n),
+            "TotalBsmtSF": rng.integers(0, 2000, size=n),
+            "Fireplaces": rng.integers(0, 3, size=n),
             "FullBath": rng.integers(0, 4, size=n),
             "HalfBath": rng.integers(0, 3, size=n),
             "BsmtFullBath": rng.integers(0, 3, size=n),
@@ -56,12 +60,20 @@ def synthetic_ames(rng: np.random.Generator) -> pd.DataFrame:
         }
     )
 
-    # Informative missingness: most houses have no pool -> PoolQC is NaN.
+    # Informative missingness: most houses have no pool -> PoolQC is NaN and
+    # PoolArea is 0, mirroring the real data's coupling.
     pool_qc = np.array(["NA"] * n, dtype=object)
     has_pool = rng.random(n) < 0.05
     pool_qc[has_pool] = rng.choice(["Fa", "Gd", "Ex"], size=has_pool.sum())
     pool_qc[pool_qc == "NA"] = np.nan
     df["PoolQC"] = pool_qc
+    df["PoolArea"] = np.where(has_pool, rng.integers(100, 800, size=n), 0)
+
+    # GarageYrBlt is informative-NaN where there is no garage.
+    no_garage = df["GarageCars"] == 0
+    df.loc[no_garage, "GarageArea"] = 0
+    garage_yr = year_built + rng.integers(0, 5, size=n)
+    df["GarageYrBlt"] = np.where(no_garage, np.nan, garage_yr)
 
     # True gap: sprinkle a few genuine NaNs into LotFrontage.
     gap_idx = rng.choice(n, size=8, replace=False)
