@@ -1,8 +1,8 @@
 # --- Data & artifacts (never committed) ---
+# reports/figures/ IS committed: README and reports embed those PNGs.
 data/
 models/
 mlruns/
-reports/figures/
 
 # --- Python ---
 __pycache__/

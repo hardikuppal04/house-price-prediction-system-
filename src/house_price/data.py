@@ -43,6 +43,30 @@ EXPECTED_AMES_COLUMNS: tuple[str, ...] = (
 )
 
 
+# Columns where NaN is *informative* — per the Ames data dictionary it means
+# "feature absent" (no pool, no alley, no basement...), not "value unrecorded".
+# EDA treats these separately and preprocessing maps them to an explicit
+# "None" category / 0 rather than imputing.
+INFORMATIVE_NA_COLUMNS: tuple[str, ...] = (
+    "PoolQC",
+    "MiscFeature",
+    "Alley",
+    "Fence",
+    "FireplaceQu",
+    "GarageType",
+    "GarageFinish",
+    "GarageQual",
+    "GarageCond",
+    "GarageYrBlt",
+    "BsmtQual",
+    "BsmtCond",
+    "BsmtExposure",
+    "BsmtFinType1",
+    "BsmtFinType2",
+    "MasVnrType",
+)
+
+
 class SchemaError(RuntimeError):
     """Raised when a fetched dataset does not match the expected schema."""
 
