@@ -1,0 +1,5 @@
+# Development dependencies. Install with: pip install -r requirements-dev.txt
+-r requirements.txt
+pytest
+ruff
+black

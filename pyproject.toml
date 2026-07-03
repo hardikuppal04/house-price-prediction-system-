@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "house-price-prediction"
+version = "0.1.0"
+description = "Production-style house price prediction system on the Ames Housing dataset."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Hardik Uppal", email = "uppalhardik92@gmail.com" }]
+license = { text = "MIT" }
+dependencies = [
+    "numpy",
+    "pandas",
+    "scikit-learn",
+    "pyyaml",
+    "pyarrow",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff", "black"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.black]
+line-length = 100

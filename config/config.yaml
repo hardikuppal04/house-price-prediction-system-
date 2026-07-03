@@ -1,0 +1,40 @@
+# Single source of truth for the house-price-prediction project.
+# Loaded through the typed dataclass in src/house_price/config.py.
+
+seed: 42
+
+paths:
+  data_raw: data/raw
+  data_processed: data/processed
+  models: models
+  reports: reports
+  figures: reports/figures
+  mlruns: mlruns
+
+dataset:
+  # Ames Housing served by OpenML. 42165 exposes the raw 79-column schema
+  # (original names: MSSubClass, OverallQual, GrLivArea, ...). California is
+  # the graceful fallback and does not support the encoding/missingness work.
+  name: ames            # ames | california
+  openml_id: 42165
+  openml_version: 1
+  target: SalePrice
+  raw_filename: ames_raw.parquet
+
+split:
+  test_size: 0.2        # 80/20 holdout, touched exactly once at the end
+  # Stratify on target deciles so the right-skewed price distribution is
+  # represented in both train and holdout.
+  stratify_bins: 10
+  train_filename: train.parquet
+  holdout_filename: holdout.parquet
+
+cv:
+  n_folds: 5
+  shuffle: true
+
+target:
+  # Model on log1p(SalePrice); report metrics in both log and dollar space.
+  transform: log1p
+
+# Model grids and tuning spaces are added in later milestones (M4/M5).

@@ -1,0 +1,9 @@
+# Pinned runtime dependencies (Python 3.14, verified installing on Windows).
+# Later milestones append modelling/serving deps (matplotlib, mlflow, xgboost,
+# lightgbm, catboost, shap, optuna, fastapi, streamlit) as they are introduced
+# and verified.
+numpy==2.5.0
+pandas==3.0.3
+scikit-learn==1.9.0
+pyyaml==6.0.3
+pyarrow==24.0.0
