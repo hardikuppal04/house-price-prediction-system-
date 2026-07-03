@@ -53,7 +53,7 @@ QUALITY_COLUMNS: tuple[str, ...] = (
     "PoolQC",
 )
 
-Encoding = Literal["ohe", "ordinal", "target"]
+Encoding = Literal["ohe", "ordinal", "target", "raw"]
 
 
 class TypeCaster(BaseEstimator, TransformerMixin):
@@ -207,6 +207,30 @@ class SkewedLog1pTransformer(BaseEstimator, TransformerMixin):
         return self.feature_names_in_ if input_features is None else np.asarray(input_features)
 
 
+class CategoricalNAFiller(BaseEstimator, TransformerMixin):
+    """Fill remaining non-numeric NaNs with an explicit "Missing" level.
+
+    Used only in the ``raw`` (CatBoost-native) variant: CatBoost rejects NaN
+    in categorical features, and true-gap categoricals (e.g. one Electrical
+    row) survive InformativeNAFiller by design.
+    """
+
+    def fit(self, X: pd.DataFrame, y: pd.Series | None = None) -> "CategoricalNAFiller":
+        self.feature_names_in_ = np.asarray(X.columns, dtype=object)
+        return self
+
+    def transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        check_is_fitted(self, "feature_names_in_")
+        out = X.copy()
+        for col in out.select_dtypes(exclude=np.number).columns:
+            out[col] = out[col].fillna("Missing")
+        return out
+
+    def get_feature_names_out(self, input_features=None) -> np.ndarray:
+        check_is_fitted(self, "feature_names_in_")
+        return self.feature_names_in_ if input_features is None else np.asarray(input_features)
+
+
 class QualityOrdinalMapper(BaseEstimator, TransformerMixin):
     """Map quality-scale columns to integers via the explicit QUALITY_SCALE.
 
@@ -280,8 +304,25 @@ def build_preprocessor(
         An unfitted sklearn Pipeline producing a dense, fully numeric,
         NaN-free DataFrame (pandas output is enabled for name traceability).
     """
-    if encoding not in ("ohe", "ordinal", "target"):
+    if encoding not in ("ohe", "ordinal", "target", "raw"):
         raise ValueError(f"Unknown encoding {encoding!r}")
+
+    cleaning_steps: list = [
+        ("types", TypeCaster()),
+        ("informative_na", InformativeNAFiller()),
+        ("lot_frontage", NeighborhoodGroupedImputer()),
+        ("features", FeatureEngineer()),
+        ("drop_id", ColumnDropper(("Id",))),
+    ]
+
+    if encoding == "raw":
+        # CatBoost-native variant: cleaning + FE only, categoricals kept as
+        # strings for the model's own categorical handling. No scaling — the
+        # only consumer is a tree booster.
+        cleaning_steps.append(("cat_na", CategoricalNAFiller()))
+        pipeline = Pipeline(cleaning_steps)
+        pipeline.set_output(transform="pandas")
+        return pipeline
 
     numeric_pipe = Pipeline(
         [
@@ -313,13 +354,7 @@ def build_preprocessor(
         ("nominal", ohe, partial(_select_nominal, exclude=nominal_excluded))
     )
 
-    steps: list = [
-        ("types", TypeCaster()),
-        ("informative_na", InformativeNAFiller()),
-        ("lot_frontage", NeighborhoodGroupedImputer()),
-        ("features", FeatureEngineer()),
-        ("drop_id", ColumnDropper(("Id",))),
-    ]
+    steps = cleaning_steps
     if log1p_skewed:
         steps.append(("log1p_skewed", SkewedLog1pTransformer()))
     steps.append(

@@ -9,3 +9,8 @@ pyyaml==6.0.3
 pyarrow==24.0.0
 matplotlib==3.11.0
 seaborn==0.13.2
+xgboost==3.3.0
+lightgbm==4.6.0
+catboost==1.2.10
+mlflow==3.14.0
+shap==0.52.0
