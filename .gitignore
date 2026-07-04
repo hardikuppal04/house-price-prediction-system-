@@ -29,5 +29,8 @@ env/
 .DS_Store
 Thumbs.db
 
+# --- Run logs ---
+reports/experiments/*.log
+
 # --- Secrets ---
 .env

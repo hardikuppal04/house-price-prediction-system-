@@ -71,6 +71,52 @@ def test_catboost_native_adapter_is_cloneable(synthetic_ames: pd.DataFrame) -> N
     assert np.isfinite(cloned.predict(Xt)).all()
 
 
+def test_normalize_params_repairs_json_roundtrip() -> None:
+    from house_price.training import _normalize_params
+
+    raw = {"model__alpha": "0.000483", "n_estimators": 800,
+           "model__max_features": "sqrt", "subsample": 0.8}
+    clean = _normalize_params(raw)
+    assert clean["alpha"] == pytest.approx(0.000483)   # prefix stripped, float parsed
+    assert clean["n_estimators"] == 800                 # native int untouched
+    assert clean["max_features"] == "sqrt"              # genuine string preserved
+    assert clean["subsample"] == 0.8
+
+
+def test_build_final_pipeline_applies_params() -> None:
+    from house_price.config import load_config
+    from house_price.training import build_final_pipeline
+
+    cfg = load_config()
+    pipe = build_final_pipeline(cfg, "Ridge", {"alpha": 3.5})
+    assert pipe.named_steps["model"].alpha == 3.5
+    # Linear models get the skew-corrected preprocessing they were tuned with.
+    assert "log1p_skewed" in pipe.named_steps["pre"].named_steps
+    with pytest.raises(ValueError, match="unavailable"):
+        build_final_pipeline(cfg, "NotAModel", {})
+
+
+def test_final_artifact_roundtrip(synthetic_ames: pd.DataFrame, tmp_path) -> None:
+    """joblib dump/load of a fitted full pipeline predicts on raw-schema rows."""
+    import joblib
+    from sklearn.linear_model import Ridge as _Ridge
+    from sklearn.pipeline import Pipeline as _Pipeline
+
+    X = synthetic_ames.drop(columns=["SalePrice"])
+    y = np.log1p(synthetic_ames["SalePrice"])
+    pipe = _Pipeline([
+        ("pre", build_preprocessor("ohe", seed=0, log1p_skewed=True)),
+        ("model", _Ridge(alpha=1.0, random_state=0)),
+    ]).fit(X, y)
+
+    path = tmp_path / "model.joblib"
+    joblib.dump(pipe, path)
+    loaded = joblib.load(path)
+    # One call, raw schema in, prediction out — the deployment contract.
+    pred = loaded.predict(X.head(3))
+    np.testing.assert_allclose(pred, pipe.predict(X.head(3)))
+
+
 def test_evaluate_cv_returns_full_metric_set(synthetic_ames: pd.DataFrame) -> None:
     X = synthetic_ames.drop(columns=["SalePrice"])
     y = np.log1p(synthetic_ames["SalePrice"])

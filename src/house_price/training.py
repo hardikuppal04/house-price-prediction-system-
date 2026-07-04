@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -17,7 +18,13 @@ from sklearn.ensemble import ExtraTreesRegressor, GradientBoostingRegressor, Ran
 from sklearn.feature_selection import RFE, mutual_info_regression
 from sklearn.inspection import permutation_importance
 from sklearn.linear_model import ElasticNet, Lasso, LinearRegression, Ridge
-from sklearn.model_selection import KFold, train_test_split
+from sklearn.model_selection import (
+    GridSearchCV,
+    KFold,
+    RandomizedSearchCV,
+    cross_val_score,
+    train_test_split,
+)
 from sklearn.pipeline import Pipeline
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.utils.validation import check_is_fitted
@@ -258,6 +265,188 @@ def log_run(run_name: str, params: dict, metrics: dict[str, float]) -> None:
 # Experiments
 # ---------------------------------------------------------------------------
 
+@dataclass
+class TuneResult:
+    """Outcome of one tuning run, for the strategy comparison table."""
+
+    model: str
+    method: str
+    best_score: float  # CV log-RMSE (lower is better)
+    n_evals: int
+    wall_time_s: float
+    best_params: dict
+
+    def as_row(self) -> dict:
+        return {
+            "model": self.model,
+            "method": self.method,
+            "cv_log_rmse": self.best_score,
+            "n_evals": self.n_evals,
+            "wall_time_s": round(self.wall_time_s, 1),
+            "best_params": str(self.best_params),
+        }
+
+
+def _linear_pipe(model: BaseEstimator, seed: int) -> Pipeline:
+    return Pipeline([
+        ("pre", build_preprocessor("ohe", seed=seed, log1p_skewed=True)),
+        ("model", model),
+    ])
+
+
+def _tree_pipe(model: BaseEstimator, seed: int) -> Pipeline:
+    return Pipeline([
+        ("pre", build_preprocessor("ohe", seed=seed)),
+        ("model", model),
+    ])
+
+
+def tune_linear_grid(cfg: Config, X: pd.DataFrame, y: pd.Series) -> list[TuneResult]:
+    """GridSearch for linear models — small convex spaces, exhaustive is cheap."""
+    cv = make_cv(cfg)
+    seed = cfg.seed
+    searches = {
+        "Ridge": (
+            Ridge(random_state=seed),
+            {"model__alpha": np.logspace(-2, 3, 20)},
+        ),
+        "Lasso": (
+            Lasso(random_state=seed, max_iter=50_000),
+            {"model__alpha": np.logspace(-5, -1, 20)},
+        ),
+        "ElasticNet": (
+            ElasticNet(random_state=seed, max_iter=50_000),
+            {
+                "model__alpha": np.logspace(-5, -1, 10),
+                "model__l1_ratio": [0.1, 0.3, 0.5, 0.7, 0.9],
+            },
+        ),
+    }
+    results = []
+    for name, (model, grid) in searches.items():
+        logger.info("GridSearch: %s", name)
+        t0 = time.perf_counter()
+        gs = GridSearchCV(
+            _linear_pipe(model, seed), grid, cv=cv,
+            scoring="neg_root_mean_squared_error", n_jobs=-1, refit=False,
+        ).fit(X, y)
+        n_evals = len(gs.cv_results_["params"])
+        res = TuneResult(name, "grid", -gs.best_score_, n_evals,
+                         time.perf_counter() - t0, gs.best_params_)
+        results.append(res)
+        log_run(f"tune__{name}", {"model": name, "method": "grid", "stage": "tuning",
+                                  **{k: str(v) for k, v in gs.best_params_.items()}},
+                {"cv_log_rmse": res.best_score, "wall_time_s": res.wall_time_s})
+    return results
+
+
+def tune_forest_random(cfg: Config, X: pd.DataFrame, y: pd.Series,
+                       n_iter: int = 25) -> TuneResult:
+    """RandomizedSearch for the bagged-tree representative (large discrete space)."""
+    cv = make_cv(cfg)
+    seed = cfg.seed
+    space = {
+        "model__n_estimators": [200, 300, 500, 800],
+        "model__max_depth": [None, 10, 15, 20, 30],
+        "model__min_samples_split": [2, 5, 10],
+        "model__min_samples_leaf": [1, 2, 4],
+        "model__max_features": ["sqrt", 0.3, 0.5, 1.0],
+    }
+    logger.info("RandomizedSearch: RandomForest (%d iters)", n_iter)
+    t0 = time.perf_counter()
+    rs = RandomizedSearchCV(
+        _tree_pipe(RandomForestRegressor(random_state=seed, n_jobs=-1), seed),
+        space, n_iter=n_iter, cv=cv, scoring="neg_root_mean_squared_error",
+        random_state=seed, n_jobs=1, refit=False,
+    ).fit(X, y)
+    res = TuneResult("RandomForest", "random", -rs.best_score_, n_iter,
+                     time.perf_counter() - t0, rs.best_params_)
+    log_run("tune__RandomForest", {"model": "RandomForest", "method": "random",
+                                   "stage": "tuning",
+                                   **{k: str(v) for k, v in rs.best_params_.items()}},
+            {"cv_log_rmse": res.best_score, "wall_time_s": res.wall_time_s})
+    return res
+
+
+def tune_boosters_optuna(cfg: Config, X: pd.DataFrame, y: pd.Series,
+                         n_trials: int = 25) -> list[TuneResult]:
+    """Optuna TPE for gradient boosters — continuous spaces, expensive evals.
+
+    Search n_jobs stays at 1: the boosters parallelise internally and
+    oversubscription would corrupt the wall-clock comparison.
+    """
+    import optuna
+
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+    cv = make_cv(cfg)
+    seed = cfg.seed
+    zoo = build_model_zoo(seed)
+
+    def make_objective(name: str):
+        def objective(trial: "optuna.Trial") -> float:
+            if name == "LightGBM":
+                from lightgbm import LGBMRegressor
+
+                model = LGBMRegressor(
+                    n_estimators=trial.suggest_int("n_estimators", 300, 2000),
+                    learning_rate=trial.suggest_float("learning_rate", 0.005, 0.2, log=True),
+                    num_leaves=trial.suggest_int("num_leaves", 15, 63),
+                    min_child_samples=trial.suggest_int("min_child_samples", 5, 50),
+                    subsample=trial.suggest_float("subsample", 0.6, 1.0),
+                    colsample_bytree=trial.suggest_float("colsample_bytree", 0.4, 1.0),
+                    reg_lambda=trial.suggest_float("reg_lambda", 1e-3, 10.0, log=True),
+                    random_state=seed, n_jobs=-1, verbose=-1,
+                )
+            elif name == "XGBoost":
+                from xgboost import XGBRegressor
+
+                model = XGBRegressor(
+                    n_estimators=trial.suggest_int("n_estimators", 300, 2000),
+                    learning_rate=trial.suggest_float("learning_rate", 0.005, 0.2, log=True),
+                    max_depth=trial.suggest_int("max_depth", 3, 8),
+                    min_child_weight=trial.suggest_int("min_child_weight", 1, 10),
+                    subsample=trial.suggest_float("subsample", 0.6, 1.0),
+                    colsample_bytree=trial.suggest_float("colsample_bytree", 0.4, 1.0),
+                    reg_lambda=trial.suggest_float("reg_lambda", 1e-3, 10.0, log=True),
+                    random_state=seed, n_jobs=-1, verbosity=0,
+                )
+            else:  # CatBoost
+                from catboost import CatBoostRegressor
+
+                model = CatBoostRegressor(
+                    iterations=trial.suggest_int("iterations", 300, 1500),
+                    learning_rate=trial.suggest_float("learning_rate", 0.01, 0.2, log=True),
+                    depth=trial.suggest_int("depth", 4, 8),
+                    l2_leaf_reg=trial.suggest_float("l2_leaf_reg", 1.0, 30.0, log=True),
+                    random_seed=seed, verbose=0, allow_writing_files=False,
+                )
+            score = cross_val_score(_tree_pipe(model, seed), X, y, cv=cv,
+                                    scoring="neg_root_mean_squared_error", n_jobs=1)
+            return -float(score.mean())
+
+        return objective
+
+    results = []
+    for name in ("LightGBM", "XGBoost", "CatBoost"):
+        if name not in zoo.models:
+            logger.warning("Optuna: %s unavailable, skipped.", name)
+            continue
+        logger.info("Optuna TPE: %s (%d trials)", name, n_trials)
+        t0 = time.perf_counter()
+        study = optuna.create_study(
+            direction="minimize",
+            sampler=optuna.samplers.TPESampler(seed=seed),
+        )
+        study.optimize(make_objective(name), n_trials=n_trials, show_progress_bar=False)
+        res = TuneResult(name, "optuna_tpe", study.best_value, n_trials,
+                         time.perf_counter() - t0, study.best_params)
+        results.append(res)
+        log_run(f"tune__{name}", {"model": name, "method": "optuna_tpe", "stage": "tuning",
+                                  **{k: str(v) for k, v in study.best_params.items()}},
+                {"cv_log_rmse": res.best_score, "wall_time_s": res.wall_time_s})
+    return results
+
+
 def _catboost_native_pipeline(seed: int) -> Pipeline | None:
     """CatBoost consuming raw categoricals — its native handling as a
     distinct encoding-comparison point. None if CatBoost is unavailable."""
@@ -269,6 +458,116 @@ def _catboost_native_pipeline(seed: int) -> Pipeline | None:
         ("pre", build_preprocessor("raw", seed=seed)),
         ("model", CatBoostNativeRegressor(random_seed=seed)),
     ])
+
+
+def _normalize_params(params: dict) -> dict:
+    """Undo JSON round-trip damage on tuned params.
+
+    GridSearch keys carry the ``model__`` pipeline prefix, and numpy floats
+    get stringified by ``json.dumps(default=str)``. Strip the prefix and
+    parse numeric strings back to floats; genuine strings (e.g.
+    ``max_features="sqrt"``) pass through unchanged.
+    """
+    clean: dict = {}
+    for key, value in params.items():
+        key = key.removeprefix("model__")
+        if isinstance(value, str):
+            try:
+                value = float(value)
+            except ValueError:
+                pass
+        clean[key] = value
+    return clean
+
+
+def build_final_pipeline(cfg: Config, model_name: str, params: dict) -> Pipeline:
+    """Reconstruct the winning pipeline from a tuned configuration.
+
+    ``params`` may come straight from best_configs.json; linear models get
+    the skew-corrected preprocessing they were tuned with.
+    """
+    zoo = build_model_zoo(cfg.seed)
+    if model_name not in zoo.models:
+        raise ValueError(f"Model {model_name!r} unavailable: {zoo.skipped.get(model_name)}")
+    model = clone(zoo.models[model_name]).set_params(**_normalize_params(params))
+    linear = model_name in ("Linear", "Ridge", "Lasso", "ElasticNet")
+    builder = _linear_pipe if linear else _tree_pipe
+    return builder(model, cfg.seed)
+
+
+def finalize_model(cfg: Config, model_name: str, params: dict,
+                   cv_log_rmse: float) -> Path:
+    """Fit the winning pipeline on ALL training data and persist the artifact.
+
+    The saved object is the entire pipeline (preprocessing included), so
+    inference is a single ``joblib.load`` + ``predict`` on raw-schema rows.
+    """
+    import json
+
+    import joblib
+
+    X, y = load_training_data(cfg)
+    pipe = build_final_pipeline(cfg, model_name, params)
+    logger.info("Fitting final %s on %d training rows...", model_name, len(X))
+    pipe.fit(X, y)
+
+    cfg.paths.models.mkdir(parents=True, exist_ok=True)
+    artifact = cfg.paths.models / "final_model.joblib"
+    joblib.dump(pipe, artifact)
+
+    meta = {
+        "model": model_name,
+        "params": {k: (v if isinstance(v, (int, float, str, bool)) else str(v))
+                   for k, v in params.items()},
+        "encoding": "ohe",
+        "target_transform": cfg.target.transform,
+        "cv_log_rmse": cv_log_rmse,
+        "n_train_rows": int(len(X)),
+        "seed": cfg.seed,
+        "trained_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+    }
+    (cfg.paths.models / "final_model_meta.json").write_text(
+        json.dumps(meta, indent=2), encoding="utf-8"
+    )
+    logger.info("Saved final pipeline to %s", artifact)
+    return artifact
+
+
+def evaluate_holdout(cfg: Config) -> dict[str, float]:
+    """THE single holdout evaluation. Loads the frozen artifact, scores the
+    292 never-seen rows, and persists predictions for M6 error analysis so
+    no later stage needs to touch the model or holdout again."""
+    import json
+
+    import joblib
+
+    artifact = cfg.paths.models / "final_model.joblib"
+    pipe = joblib.load(artifact)
+
+    _, holdout_df = load_split(cfg)  # outlier filter is train-only, by design
+    X_hold = holdout_df.drop(columns=[cfg.dataset.target])
+    y_hold_log = np.log1p(holdout_df[cfg.dataset.target])
+
+    t0 = time.perf_counter()
+    pred_log = pipe.predict(X_hold)
+    latency_ms = (time.perf_counter() - t0) / len(X_hold) * 1000
+
+    n_features = len(pipe[:-1].get_feature_names_out())
+    metrics = regression_metrics(y_hold_log.to_numpy(), pred_log, n_features=n_features)
+    metrics["pred_latency_ms_per_row"] = latency_ms
+
+    out = holdout_df.copy()
+    out["pred_log"] = pred_log
+    out["pred_price"] = np.expm1(pred_log)
+    out.to_parquet(cfg.paths.data_processed / "holdout_predictions.parquet", index=False)
+
+    (cfg.paths.reports / "holdout_metrics.json").write_text(
+        json.dumps({k: float(v) for k, v in metrics.items()}, indent=2), encoding="utf-8"
+    )
+    log_run("holdout_final", {"stage": "holdout"}, metrics)
+    logger.info("Holdout metrics: %s",
+                {k: round(v, 5) for k, v in metrics.items()})
+    return metrics
 
 
 def run_encoding_experiment(cfg: Config) -> pd.DataFrame:

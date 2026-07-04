@@ -1,0 +1,71 @@
+{
+  "Ridge": {
+    "method": "grid",
+    "cv_log_rmse": 0.11395085626340781,
+    "params": {
+      "model__alpha": 14.38449888287663
+    }
+  },
+  "Lasso": {
+    "method": "grid",
+    "cv_log_rmse": 0.11096455536475265,
+    "params": {
+      "model__alpha": 0.0004832930238571752
+    }
+  },
+  "ElasticNet": {
+    "method": "grid",
+    "cv_log_rmse": 0.11098006222006829,
+    "params": {
+      "model__alpha": 0.0005994842503189409,
+      "model__l1_ratio": 0.9
+    }
+  },
+  "RandomForest": {
+    "method": "random",
+    "cv_log_rmse": 0.13260041875244505,
+    "params": {
+      "model__n_estimators": 800,
+      "model__min_samples_split": 2,
+      "model__min_samples_leaf": 1,
+      "model__max_features": 0.3,
+      "model__max_depth": null
+    }
+  },
+  "LightGBM": {
+    "method": "optuna_tpe",
+    "cv_log_rmse": 0.12260026118323133,
+    "params": {
+      "n_estimators": 1421,
+      "learning_rate": 0.011919056575224681,
+      "num_leaves": 23,
+      "min_child_samples": 11,
+      "subsample": 0.9496606563368475,
+      "colsample_bytree": 0.76621589448748,
+      "reg_lambda": 0.046436588065648474
+    }
+  },
+  "XGBoost": {
+    "method": "optuna_tpe",
+    "cv_log_rmse": 0.11576021990637272,
+    "params": {
+      "n_estimators": 1731,
+      "learning_rate": 0.020474474784069937,
+      "max_depth": 4,
+      "min_child_weight": 4,
+      "subsample": 0.8025552800205105,
+      "colsample_bytree": 0.4061459394588905,
+      "reg_lambda": 0.012338703907462549
+    }
+  },
+  "CatBoost": {
+    "method": "optuna_tpe",
+    "cv_log_rmse": 0.11430863821708773,
+    "params": {
+      "iterations": 1144,
+      "learning_rate": 0.03158837685948107,
+      "depth": 5,
+      "l2_leaf_reg": 1.4190841583358602
+    }
+  }
+}

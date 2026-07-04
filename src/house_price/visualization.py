@@ -154,6 +154,42 @@ def plot_correlation_heatmap(
 
 
 # ---------------------------------------------------------------------------
+# Learning curve
+# ---------------------------------------------------------------------------
+
+def plot_learning_curve(
+    estimator,
+    X: pd.DataFrame,
+    y: pd.Series,
+    cv,
+    save_path: Path | None = None,
+) -> Figure:
+    """Train-vs-validation RMSE over training-set size.
+
+    The gap between the curves is the variance (overfitting) evidence used in
+    the bias/variance discussion; converged-but-high curves indicate bias.
+    """
+    from sklearn.model_selection import learning_curve
+
+    sizes, train_scores, val_scores = learning_curve(
+        estimator, X, y, cv=cv,
+        train_sizes=np.linspace(0.1, 1.0, 8),
+        scoring="neg_root_mean_squared_error", n_jobs=1, shuffle=False,
+    )
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.plot(sizes, -train_scores.mean(axis=1), "o-", label="train RMSE (log space)")
+    ax.plot(sizes, -val_scores.mean(axis=1), "o-", label="CV RMSE (log space)")
+    ax.fill_between(sizes,
+                    -val_scores.mean(axis=1) - val_scores.std(axis=1),
+                    -val_scores.mean(axis=1) + val_scores.std(axis=1), alpha=0.15)
+    ax.set_xlabel("training rows")
+    ax.set_ylabel("RMSE (log space)")
+    ax.set_title("Learning curve — final model")
+    ax.legend()
+    return _finalize(fig, save_path)
+
+
+# ---------------------------------------------------------------------------
 # Outliers & categorical structure
 # ---------------------------------------------------------------------------
 
