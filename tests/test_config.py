@@ -6,7 +6,15 @@ from pathlib import Path
 
 import pytest
 
-from house_price.config import Config, load_config, project_root
+from house_price.config import CONFIG_ENV_VAR, Config, load_config, project_root
+
+
+def _copy_config(target_root: Path) -> Path:
+    target = target_root / "config" / "config.yaml"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    source = project_root() / "config" / "config.yaml"
+    target.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+    return target
 
 
 def test_load_default_config() -> None:
@@ -36,8 +44,34 @@ def test_paths_are_absolute_under_root() -> None:
 
 
 def test_missing_config_raises(tmp_path: Path) -> None:
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(FileNotFoundError, match=CONFIG_ENV_VAR):
         load_config(tmp_path / "does_not_exist.yaml")
+
+
+def test_cwd_config_resolves_paths_under_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _copy_config(tmp_path)
+    monkeypatch.delenv(CONFIG_ENV_VAR, raising=False)
+    monkeypatch.chdir(tmp_path)
+
+    cfg = load_config()
+
+    assert cfg.paths.data_raw == tmp_path / "data" / "raw"
+    assert cfg.paths.models == tmp_path / "models"
+    assert cfg.paths.reports == tmp_path / "reports"
+
+
+def test_env_config_overrides_default_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    env_root = tmp_path / "env_project"
+    cfg_path = _copy_config(env_root)
+    monkeypatch.setenv(CONFIG_ENV_VAR, str(cfg_path))
+    monkeypatch.chdir(tmp_path)
+
+    cfg = load_config()
+
+    assert cfg.paths.data_processed == env_root / "data" / "processed"
+    assert cfg.paths.mlruns == env_root / "mlruns"
 
 
 def test_paths_ensure_creates_dirs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

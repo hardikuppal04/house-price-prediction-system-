@@ -49,6 +49,13 @@ house-price evaluate --confirm-final
 pytest --cov
 ```
 
+Configuration defaults to `./config/config.yaml`. When running from another working directory or
+from an installed package, set `HOUSE_PRICE_CONFIG` to the config file path:
+
+```powershell
+$env:HOUSE_PRICE_CONFIG = "C:\path\to\house-price-prediction\config\config.yaml"
+```
+
 `validate-data` writes the source ID, version, canonical Parquet SHA-256, row count, columns,
 temporal partition sizes, and public schema. `train` records the git commit, dependency versions,
 seed, folds, model decision, residual correction, prediction bounds, and artifact checksum.

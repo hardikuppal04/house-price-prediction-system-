@@ -7,21 +7,24 @@ silently deep inside a pipeline.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
 
+CONFIG_ENV_VAR = "HOUSE_PRICE_CONFIG"
+
 
 def project_root() -> Path:
-    """Return the repository root (two levels above this file's package)."""
+    """Return the editable-source repository root."""
     # src/house_price/config.py -> src/house_price -> src -> <root>
     return Path(__file__).resolve().parents[2]
 
 
 @dataclass(frozen=True)
 class Paths:
-    """Filesystem locations, resolved to absolute paths under the repo root."""
+    """Filesystem locations, resolved under the selected project root."""
 
     data_raw: Path
     data_processed: Path
@@ -95,12 +98,47 @@ def _resolve(root: Path, value: str) -> Path:
     return path if path.is_absolute() else root / path
 
 
+def _config_root(cfg_path: Path) -> Path:
+    """Return the project root implied by a config file location."""
+    parent = cfg_path.parent
+    return parent.parent if parent.name == "config" else parent
+
+
+def _default_config_candidates() -> list[Path]:
+    return [
+        Path.cwd() / "config" / "config.yaml",
+        project_root() / "config" / "config.yaml",
+    ]
+
+
+def _select_config_path(path: str | Path | None) -> Path:
+    if path is not None:
+        cfg_path = Path(path).expanduser()
+        return cfg_path if cfg_path.is_absolute() else Path.cwd() / cfg_path
+
+    env_path = os.getenv(CONFIG_ENV_VAR)
+    if env_path:
+        cfg_path = Path(env_path).expanduser()
+        return cfg_path if cfg_path.is_absolute() else Path.cwd() / cfg_path
+
+    for candidate in _default_config_candidates():
+        if candidate.exists():
+            return candidate
+
+    searched = ", ".join(str(candidate) for candidate in _default_config_candidates())
+    raise FileNotFoundError(
+        "Config file not found. Searched: "
+        f"{searched}. Set {CONFIG_ENV_VAR}=C:\\path\\to\\config.yaml to override."
+    )
+
+
 def load_config(path: str | Path | None = None) -> Config:
     """Load and validate the project configuration.
 
     Args:
         path: Optional explicit path to a YAML config. Defaults to
-            ``config/config.yaml`` under the repository root.
+            ``$HOUSE_PRICE_CONFIG``, ``./config/config.yaml``, then the
+            editable-source checkout layout.
 
     Returns:
         A fully typed, immutable :class:`Config`.
@@ -109,10 +147,13 @@ def load_config(path: str | Path | None = None) -> Config:
         FileNotFoundError: If the config file does not exist.
         KeyError: If a required section or key is missing.
     """
-    root = project_root()
-    cfg_path = Path(path) if path is not None else root / "config" / "config.yaml"
+    cfg_path = _select_config_path(path).resolve()
     if not cfg_path.exists():
-        raise FileNotFoundError(f"Config file not found: {cfg_path}")
+        raise FileNotFoundError(
+            f"Config file not found: {cfg_path}. "
+            f"Set {CONFIG_ENV_VAR}=C:\\path\\to\\config.yaml to override."
+        )
+    root = _config_root(cfg_path)
 
     with cfg_path.open("r", encoding="utf-8") as handle:
         raw = yaml.safe_load(handle)
