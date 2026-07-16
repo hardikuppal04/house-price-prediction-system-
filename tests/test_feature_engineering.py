@@ -41,12 +41,12 @@ def tiny_frame() -> pd.DataFrame:
 def test_engineered_values_hand_checked(tiny_frame: pd.DataFrame) -> None:
     out = FeatureEngineer().fit_transform(tiny_frame)
     row = out.iloc[0]
-    assert row["HouseAge"] == 8            # 2008 - 2000
-    assert row["RemodAge"] == 3            # 2008 - 2005
-    assert row["TotalSF"] == 2300          # 1500 + 800
-    assert row["TotalBaths"] == 4.0        # 2 + 0.5 + 1 + 0.5
-    assert row["QualByArea"] == 10500      # 7 * 1500
-    assert row["PorchSF"] == 150           # 40+0+10+0+100
+    assert row["HouseAge"] == 8  # 2008 - 2000
+    assert row["RemodAge"] == 3  # 2008 - 2005
+    assert row["TotalSF"] == 2300  # 1500 + 800
+    assert row["TotalBaths"] == 4.0  # 2 + 0.5 + 1 + 0.5
+    assert row["QualByArea"] == 10500  # 7 * 1500
+    assert row["PorchSF"] == 150  # 40+0+10+0+100
     assert row["HasPool"] == 0
     assert row["HasGarage"] == 1
     assert row["HasFireplace"] == 1

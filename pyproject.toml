@@ -9,17 +9,30 @@ description = "Production-style house price prediction system on the Ames Housin
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "Hardik Uppal", email = "uppalhardik92@gmail.com" }]
-license = { text = "MIT" }
+license = "MIT"
 dependencies = [
     "numpy",
     "pandas",
     "scikit-learn",
     "pyyaml",
     "pyarrow",
+    "matplotlib",
+    "seaborn",
+    "fastapi",
+    "uvicorn[standard]",
+    "pydantic>=2",
+    "prometheus-client",
+    "skops",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "ruff", "black"]
+dev = ["pytest", "pytest-cov", "ruff", "black", "mypy", "httpx", "build", "pip-audit"]
+ui = ["streamlit", "requests"]
+tracking = ["mlflow"]
+explain = ["shap"]
+
+[project.scripts]
+house-price = "house_price.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -28,9 +41,21 @@ where = ["src"]
 testpaths = ["tests"]
 addopts = "-q"
 
+[tool.coverage.run]
+source = ["house_price"]
+
+[tool.coverage.report]
+fail_under = 55
+show_missing = true
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+check_untyped_defs = true
 
 [tool.black]
 line-length = 100

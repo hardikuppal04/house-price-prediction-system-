@@ -30,8 +30,9 @@ logger = get_logger("scripts.finalize")
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Finalize model + holdout eval.")
-    parser.add_argument("--model", default=None,
-                        help="Override the winner (a name from best_configs.json).")
+    parser.add_argument(
+        "--model", default=None, help="Override the winner (a name from best_configs.json)."
+    )
     args = parser.parse_args()
 
     cfg = load_config()
@@ -44,23 +45,32 @@ def main() -> None:
     )
     name = args.model or min(configs, key=lambda k: configs[k]["cv_log_rmse"])
     chosen = configs[name]
-    logger.info("Final model: %s (CV log-RMSE %.5f, method %s)",
-                name, chosen["cv_log_rmse"], chosen["method"])
+    logger.info(
+        "Final model: %s (CV log-RMSE %.5f, method %s)",
+        name,
+        chosen["cv_log_rmse"],
+        chosen["method"],
+    )
 
     finalize_model(cfg, name, chosen["params"], chosen["cv_log_rmse"])
 
     # Learning curve on training data only (bias/variance evidence for M6/M8).
     X, y = load_training_data(cfg)
     plot_learning_curve(
-        build_final_pipeline(cfg, name, chosen["params"]), X, y, make_cv(cfg),
+        build_final_pipeline(cfg, name, chosen["params"]),
+        X,
+        y,
+        make_cv(cfg),
         save_path=cfg.paths.figures / "learning_curve_final.png",
     )
 
     metrics = evaluate_holdout(cfg)
     logger.info(
         "HOLDOUT (single touch) — log-RMSE %.5f | R2 %.4f | $MAE %.0f | MAPE %.4f",
-        metrics["log_rmse"], metrics["log_r2"],
-        metrics["dollar_mae"], metrics["dollar_mape"],
+        metrics["log_rmse"],
+        metrics["log_r2"],
+        metrics["dollar_mae"],
+        metrics["dollar_mape"],
     )
 
 

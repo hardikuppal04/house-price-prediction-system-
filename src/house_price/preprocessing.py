@@ -262,6 +262,7 @@ class QualityOrdinalMapper(BaseEstimator, TransformerMixin):
 # Column selectors (module-level so the fitted pipeline stays picklable)
 # ---------------------------------------------------------------------------
 
+
 def _select_quality(X: pd.DataFrame) -> list[str]:
     return [c for c in QUALITY_COLUMNS if c in X.columns]
 
@@ -346,20 +347,25 @@ def build_preprocessor(
         # (the thing that makes it leakage-safe) with our project seed.
         encoder_cv = KFold(n_splits=5, shuffle=True, random_state=seed)
         transformers.append(
-            ("neighborhood", TargetEncoder(target_type="continuous", cv=encoder_cv),
-             ["Neighborhood"]),
+            (
+                "neighborhood",
+                TargetEncoder(target_type="continuous", cv=encoder_cv),
+                ["Neighborhood"],
+            ),
         )
         nominal_excluded += ("Neighborhood",)
-    transformers.append(
-        ("nominal", ohe, partial(_select_nominal, exclude=nominal_excluded))
-    )
+    transformers.append(("nominal", ohe, partial(_select_nominal, exclude=nominal_excluded)))
 
     steps = cleaning_steps
     if log1p_skewed:
         steps.append(("log1p_skewed", SkewedLog1pTransformer()))
     steps.append(
-        ("encode", ColumnTransformer(transformers=transformers, remainder="drop",
-                                     verbose_feature_names_out=False))
+        (
+            "encode",
+            ColumnTransformer(
+                transformers=transformers, remainder="drop", verbose_feature_names_out=False
+            ),
+        )
     )
 
     pipeline = Pipeline(steps)

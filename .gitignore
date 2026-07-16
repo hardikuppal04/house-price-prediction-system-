@@ -12,6 +12,7 @@ __pycache__/
 .eggs/
 build/
 dist/
+.coverage
 .pytest_cache/
 .pytest-tmp/
 .mypy_cache/
@@ -30,6 +31,8 @@ env/
 Thumbs.db
 
 # --- Run logs ---
+*.log
+*.err.log
 reports/experiments/*.log
 
 # --- Secrets ---

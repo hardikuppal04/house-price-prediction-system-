@@ -74,12 +74,16 @@ def test_catboost_native_adapter_is_cloneable(synthetic_ames: pd.DataFrame) -> N
 def test_normalize_params_repairs_json_roundtrip() -> None:
     from house_price.training import _normalize_params
 
-    raw = {"model__alpha": "0.000483", "n_estimators": 800,
-           "model__max_features": "sqrt", "subsample": 0.8}
+    raw = {
+        "model__alpha": "0.000483",
+        "n_estimators": 800,
+        "model__max_features": "sqrt",
+        "subsample": 0.8,
+    }
     clean = _normalize_params(raw)
-    assert clean["alpha"] == pytest.approx(0.000483)   # prefix stripped, float parsed
-    assert clean["n_estimators"] == 800                 # native int untouched
-    assert clean["max_features"] == "sqrt"              # genuine string preserved
+    assert clean["alpha"] == pytest.approx(0.000483)  # prefix stripped, float parsed
+    assert clean["n_estimators"] == 800  # native int untouched
+    assert clean["max_features"] == "sqrt"  # genuine string preserved
     assert clean["subsample"] == 0.8
 
 
@@ -104,10 +108,12 @@ def test_final_artifact_roundtrip(synthetic_ames: pd.DataFrame, tmp_path) -> Non
 
     X = synthetic_ames.drop(columns=["SalePrice"])
     y = np.log1p(synthetic_ames["SalePrice"])
-    pipe = _Pipeline([
-        ("pre", build_preprocessor("ohe", seed=0, log1p_skewed=True)),
-        ("model", _Ridge(alpha=1.0, random_state=0)),
-    ]).fit(X, y)
+    pipe = _Pipeline(
+        [
+            ("pre", build_preprocessor("ohe", seed=0, log1p_skewed=True)),
+            ("model", _Ridge(alpha=1.0, random_state=0)),
+        ]
+    ).fit(X, y)
 
     path = tmp_path / "model.joblib"
     joblib.dump(pipe, path)
@@ -120,14 +126,22 @@ def test_final_artifact_roundtrip(synthetic_ames: pd.DataFrame, tmp_path) -> Non
 def test_evaluate_cv_returns_full_metric_set(synthetic_ames: pd.DataFrame) -> None:
     X = synthetic_ames.drop(columns=["SalePrice"])
     y = np.log1p(synthetic_ames["SalePrice"])
-    pipe = Pipeline([
-        ("pre", build_preprocessor("ordinal", seed=0)),
-        ("model", Ridge(alpha=1.0, random_state=0)),
-    ])
+    pipe = Pipeline(
+        [
+            ("pre", build_preprocessor("ordinal", seed=0)),
+            ("model", Ridge(alpha=1.0, random_state=0)),
+        ]
+    )
     cv = KFold(n_splits=3, shuffle=True, random_state=0)
     metrics = evaluate_cv(pipe, X, y, cv)
-    for key in ("log_rmse_mean", "log_rmse_std", "dollar_mae_mean",
-                "dollar_mape_mean", "fit_time_s", "pred_latency_ms_per_row"):
+    for key in (
+        "log_rmse_mean",
+        "log_rmse_std",
+        "dollar_mae_mean",
+        "dollar_mape_mean",
+        "fit_time_s",
+        "pred_latency_ms_per_row",
+    ):
         assert key in metrics
         assert np.isfinite(metrics[key])
     assert metrics["log_rmse_mean"] > 0

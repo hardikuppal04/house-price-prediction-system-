@@ -131,7 +131,7 @@ def load_config(path: str | Path | None = None) -> Config:
     target = TargetConfig(**raw["target"])
     preprocessing = PreprocessingConfig(**raw["preprocessing"])
 
-    return Config(
+    config = Config(
         seed=int(raw["seed"]),
         paths=paths,
         dataset=dataset,
@@ -140,3 +140,19 @@ def load_config(path: str | Path | None = None) -> Config:
         target=target,
         preprocessing=preprocessing,
     )
+    _validate_config(config)
+    return config
+
+
+def _validate_config(cfg: Config) -> None:
+    """Fail early on invalid values instead of deferring errors to sklearn."""
+    if cfg.dataset.name != "ames":
+        raise ValueError("The production workflow supports only the Ames dataset")
+    if not 0 < cfg.split.test_size < 1:
+        raise ValueError("split.test_size must be between 0 and 1")
+    if cfg.split.stratify_bins < 2:
+        raise ValueError("split.stratify_bins must be at least 2")
+    if cfg.cv.n_folds < 2:
+        raise ValueError("cv.n_folds must be at least 2")
+    if cfg.target.transform != "log1p":
+        raise ValueError("Only the log1p target transform is supported")

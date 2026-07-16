@@ -1,7 +1,5 @@
-# Pinned runtime dependencies (Python 3.14, verified installing on Windows).
-# Later milestones append modelling/serving deps (matplotlib, mlflow, xgboost,
-# lightgbm, catboost, shap, optuna, fastapi, streamlit) as they are introduced
-# and verified.
+# Pinned runtime dependencies for local reproduction.
+# The package metadata and CI target Python 3.11 and 3.12.
 numpy==2.5.0
 pandas==3.0.3
 scikit-learn==1.9.0
@@ -15,3 +13,10 @@ catboost==1.2.10
 mlflow==3.14.0
 shap==0.52.0
 optuna==4.9.0
+fastapi
+uvicorn[standard]
+pydantic>=2
+prometheus-client
+skops
+streamlit
+requests

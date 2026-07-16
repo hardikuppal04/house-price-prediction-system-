@@ -18,10 +18,10 @@ from house_price.preprocessing import (
     drop_partial_sale_outliers,
 )
 
-
 # ---------------------------------------------------------------------------
 # Individual transformers
 # ---------------------------------------------------------------------------
+
 
 def test_informative_na_filler(synthetic_ames: pd.DataFrame) -> None:
     out = InformativeNAFiller().fit_transform(synthetic_ames)
@@ -77,9 +77,7 @@ def test_skewed_log1p_learned_at_fit(synthetic_ames: pd.DataFrame) -> None:
 
 
 def test_drop_partial_sale_outliers() -> None:
-    df = pd.DataFrame(
-        {"GrLivArea": [1500, 4500, 4600], "SalePrice": [200000, 150000, 500000]}
-    )
+    df = pd.DataFrame({"GrLivArea": [1500, 4500, 4600], "SalePrice": [200000, 150000, 500000]})
     out = drop_partial_sale_outliers(df)
     # Only the big-but-cheap house goes; the big-and-expensive one stays.
     assert len(out) == 2
@@ -89,6 +87,7 @@ def test_drop_partial_sale_outliers() -> None:
 # ---------------------------------------------------------------------------
 # Assembled pipeline
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.parametrize("encoding", ["ohe", "ordinal", "target"])
 def test_pipeline_output_is_clean(synthetic_ames: pd.DataFrame, encoding: str) -> None:

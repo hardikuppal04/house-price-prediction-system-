@@ -29,8 +29,12 @@ logger = get_logger("scripts.tune")
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run the tuning comparison.")
-    parser.add_argument("--trials", type=int, default=25,
-                        help="Optuna trials per booster (and RandomizedSearch iters).")
+    parser.add_argument(
+        "--trials",
+        type=int,
+        default=25,
+        help="Optuna trials per booster (and RandomizedSearch iters).",
+    )
     args = parser.parse_args()
 
     cfg = load_config()
@@ -56,9 +60,12 @@ def main() -> None:
     (out_dir / "best_configs.json").write_text(
         json.dumps(best_configs, indent=2, default=str), encoding="utf-8"
     )
-    logger.info("Tuning comparison:\n%s",
-                table[["model", "method", "cv_log_rmse", "n_evals", "wall_time_s"]]
-                .round(5).to_string(index=False))
+    logger.info(
+        "Tuning comparison:\n%s",
+        table[["model", "method", "cv_log_rmse", "n_evals", "wall_time_s"]]
+        .round(5)
+        .to_string(index=False),
+    )
 
 
 if __name__ == "__main__":

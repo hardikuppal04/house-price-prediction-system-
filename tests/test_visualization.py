@@ -58,9 +58,7 @@ def test_target_correlations_excludes_target(synthetic_ames: pd.DataFrame) -> No
     assert {"OverallQual", "GrLivArea"} <= set(corr.head(3).index)
 
 
-def test_plots_return_figures_and_save(
-    synthetic_ames: pd.DataFrame, tmp_path: Path
-) -> None:
+def test_plots_return_figures_and_save(synthetic_ames: pd.DataFrame, tmp_path: Path) -> None:
     table = missingness_table(synthetic_ames)
     out = tmp_path / "figs" / "missing.png"
     fig = plot_missingness(table, save_path=out)

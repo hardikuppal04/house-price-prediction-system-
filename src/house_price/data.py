@@ -185,3 +185,45 @@ def load_split(cfg: Config) -> tuple[pd.DataFrame, pd.DataFrame]:
     train_df = load_dataframe(cfg.paths.data_processed / cfg.split.train_filename)
     holdout_df = load_dataframe(cfg.paths.data_processed / cfg.split.holdout_filename)
     return train_df, holdout_df
+
+
+def make_temporal_split(
+    df: pd.DataFrame,
+    *,
+    year_column: str = "YrSold",
+    holdout_year: int = 2010,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Split chronologically, reserving one complete year as final holdout."""
+    if year_column not in df.columns:
+        raise SchemaError(f"Temporal split requires {year_column!r}")
+    years = pd.to_numeric(df[year_column], errors="raise")
+    if holdout_year not in set(years):
+        raise ValueError(f"No rows found for holdout year {holdout_year}")
+    future = sorted(set(years[years > holdout_year]))
+    if future:
+        raise ValueError(f"Rows newer than the holdout year are not allowed: {future}")
+    development = df.loc[years < holdout_year].copy()
+    holdout = df.loc[years == holdout_year].copy()
+    if development.empty or holdout.empty:
+        raise ValueError("Temporal split produced an empty partition")
+    return development.reset_index(drop=True), holdout.reset_index(drop=True)
+
+
+def expanding_year_folds(
+    frame: pd.DataFrame,
+    *,
+    year_column: str = "valuation_year",
+    validation_years: tuple[int, ...] = (2007, 2008, 2009),
+) -> list[tuple[np.ndarray, np.ndarray]]:
+    """Return past-only expanding-window indices for temporal CV."""
+    years = pd.to_numeric(frame[year_column], errors="raise").to_numpy()
+    folds: list[tuple[np.ndarray, np.ndarray]] = []
+    for year in validation_years:
+        train_idx = np.flatnonzero(years < year)
+        validation_idx = np.flatnonzero(years == year)
+        if not len(train_idx) or not len(validation_idx):
+            raise ValueError(f"Cannot construct temporal fold for {year}")
+        if years[train_idx].max() >= years[validation_idx].min():
+            raise AssertionError("Temporal leakage detected")
+        folds.append((train_idx, validation_idx))
+    return folds

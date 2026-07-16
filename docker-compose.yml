@@ -1,0 +1,23 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/app/models:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/readyz')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  ui:
+    build: .
+    command: ["streamlit", "run", "app/streamlit_app.py", "--server.address", "0.0.0.0"]
+    environment:
+      HOUSE_PRICE_API: http://api:8000/v1/predict
+    ports:
+      - "8501:8501"
+    depends_on:
+      api:
+        condition: service_healthy

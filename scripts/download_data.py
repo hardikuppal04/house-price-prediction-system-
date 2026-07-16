@@ -17,9 +17,7 @@ logger = get_logger("scripts.download_data")
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Download raw data from OpenML.")
-    parser.add_argument(
-        "--force", action="store_true", help="Re-download even if cached."
-    )
+    parser.add_argument("--force", action="store_true", help="Re-download even if cached.")
     args = parser.parse_args()
 
     cfg = load_config()

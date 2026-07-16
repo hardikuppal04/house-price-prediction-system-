@@ -35,6 +35,7 @@ def _finalize(fig: Figure, save_path: Path | None) -> Figure:
 # Missingness
 # ---------------------------------------------------------------------------
 
+
 def missingness_table(
     df: pd.DataFrame,
     informative_cols: tuple[str, ...] = INFORMATIVE_NA_COLUMNS,
@@ -57,8 +58,7 @@ def missingness_table(
             "n_missing": n_missing,
             "pct_missing": (n_missing / len(df) * 100).round(2),
             "kind": [
-                "informative" if col in informative_cols else "true gap"
-                for col in n_missing.index
+                "informative" if col in informative_cols else "true gap" for col in n_missing.index
             ],
         }
     )
@@ -80,9 +80,8 @@ def plot_missingness(table: pd.DataFrame, save_path: Path | None = None) -> Figu
 # Target distribution
 # ---------------------------------------------------------------------------
 
-def plot_target_distribution(
-    y: pd.Series, save_path: Path | None = None
-) -> Figure:
+
+def plot_target_distribution(y: pd.Series, save_path: Path | None = None) -> Figure:
     """Raw vs log1p target histograms with skewness annotated on each."""
     fig, axes = plt.subplots(1, 2, figsize=(11, 4))
     for ax, values, label in (
@@ -98,6 +97,7 @@ def plot_target_distribution(
 # ---------------------------------------------------------------------------
 # Skewness
 # ---------------------------------------------------------------------------
+
 
 def numeric_skewness(df: pd.DataFrame, threshold: float = 0.75) -> pd.Series:
     """Skewness of numeric columns exceeding ``threshold`` in magnitude.
@@ -124,7 +124,7 @@ def plot_skewed_features(
         ax.set_title(f"{col} — skew = {df[col].skew():.2f}", fontsize=9)
         ax.set_xlabel("")
     # Hide any unused panels in the grid.
-    for ax in np.ravel(axes)[len(columns):]:
+    for ax in np.ravel(axes)[len(columns) :]:
         ax.set_visible(False)
     return _finalize(fig, save_path)
 
@@ -132,6 +132,7 @@ def plot_skewed_features(
 # ---------------------------------------------------------------------------
 # Correlations
 # ---------------------------------------------------------------------------
+
 
 def target_correlations(df: pd.DataFrame, target: str) -> pd.Series:
     """Pearson correlation of every numeric feature with the target, sorted
@@ -147,8 +148,7 @@ def plot_correlation_heatmap(
     top = target_correlations(df, target).head(top_n).index.tolist() + [target]
     corr = df[top].corr()
     fig, ax = plt.subplots(figsize=(10, 8))
-    sns.heatmap(corr, annot=True, fmt=".2f", cmap="vlag", center=0, ax=ax,
-                annot_kws={"size": 7})
+    sns.heatmap(corr, annot=True, fmt=".2f", cmap="vlag", center=0, ax=ax, annot_kws={"size": 7})
     ax.set_title(f"Correlation heatmap — top {top_n} features vs {target}")
     return _finalize(fig, save_path)
 
@@ -156,6 +156,7 @@ def plot_correlation_heatmap(
 # ---------------------------------------------------------------------------
 # Learning curve
 # ---------------------------------------------------------------------------
+
 
 def plot_learning_curve(
     estimator,
@@ -172,16 +173,24 @@ def plot_learning_curve(
     from sklearn.model_selection import learning_curve
 
     sizes, train_scores, val_scores = learning_curve(
-        estimator, X, y, cv=cv,
+        estimator,
+        X,
+        y,
+        cv=cv,
         train_sizes=np.linspace(0.1, 1.0, 8),
-        scoring="neg_root_mean_squared_error", n_jobs=1, shuffle=False,
+        scoring="neg_root_mean_squared_error",
+        n_jobs=1,
+        shuffle=False,
     )
     fig, ax = plt.subplots(figsize=(8, 5))
     ax.plot(sizes, -train_scores.mean(axis=1), "o-", label="train RMSE (log space)")
     ax.plot(sizes, -val_scores.mean(axis=1), "o-", label="CV RMSE (log space)")
-    ax.fill_between(sizes,
-                    -val_scores.mean(axis=1) - val_scores.std(axis=1),
-                    -val_scores.mean(axis=1) + val_scores.std(axis=1), alpha=0.15)
+    ax.fill_between(
+        sizes,
+        -val_scores.mean(axis=1) - val_scores.std(axis=1),
+        -val_scores.mean(axis=1) + val_scores.std(axis=1),
+        alpha=0.15,
+    )
     ax.set_xlabel("training rows")
     ax.set_ylabel("RMSE (log space)")
     ax.set_title("Learning curve — final model")
@@ -192,6 +201,7 @@ def plot_learning_curve(
 # ---------------------------------------------------------------------------
 # Outliers & categorical structure
 # ---------------------------------------------------------------------------
+
 
 def plot_outlier_scatter(
     df: pd.DataFrame,

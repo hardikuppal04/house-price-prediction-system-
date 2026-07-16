@@ -71,9 +71,7 @@ def summarize_cv(results: dict[str, dict[str, float]]) -> pd.DataFrame:
     return table.sort_values("log_rmse_mean" if "log_rmse_mean" in table.columns else "log_rmse")
 
 
-def consensus_selection(
-    keep_sets: dict[str, set[str]], all_features: list[str]
-) -> pd.DataFrame:
+def consensus_selection(keep_sets: dict[str, set[str]], all_features: list[str]) -> pd.DataFrame:
     """Combine per-method keep-sets into a consensus vote.
 
     Rule (documented in the report): a feature is kept when at least half of

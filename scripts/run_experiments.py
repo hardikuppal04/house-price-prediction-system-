@@ -25,10 +25,12 @@ logger = get_logger("scripts.run_experiments")
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run M4 experiments.")
     parser.add_argument("--stage", choices=["encoding", "zoo", "selection"], required=True)
-    parser.add_argument("--encoding", default="ohe",
-                        choices=["ohe", "ordinal", "target"],
-                        help="Encoding for zoo/selection stages (winner of the "
-                             "encoding stage).")
+    parser.add_argument(
+        "--encoding",
+        default="ohe",
+        choices=["ohe", "ordinal", "target"],
+        help="Encoding for zoo/selection stages (winner of the " "encoding stage).",
+    )
     args = parser.parse_args()
 
     cfg = load_config()
@@ -51,8 +53,17 @@ def main() -> None:
         path = out_dir / "feature_selection_comparison.csv"
 
     table.to_csv(path)
-    cols = [c for c in ("log_rmse_mean", "log_rmse_std", "dollar_mae_mean",
-                        "dollar_mape_mean", "fit_time_s") if c in table.columns]
+    cols = [
+        c
+        for c in (
+            "log_rmse_mean",
+            "log_rmse_std",
+            "dollar_mae_mean",
+            "dollar_mape_mean",
+            "fit_time_s",
+        )
+        if c in table.columns
+    ]
     logger.info("Results written to %s\n%s", path, table[cols].round(5).to_string())
 
 
