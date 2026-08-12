@@ -16,7 +16,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - run: pip install -e ".[dev,ui]"
+      - run: pip install -e ".[dev,ui,tracking]"
       - run: ruff check .
       - run: black --check .
       - run: python -m mypy --no-incremental src
